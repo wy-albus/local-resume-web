@@ -52,6 +52,7 @@ function DescriptionList({ items }) {
     <div className="resume-description-list">
       {descriptions.map((description, index) => {
         const marker = description.style.marker;
+
         return (
           <div
             key={`${description.text}-${index}`}
@@ -104,8 +105,10 @@ function BasicInfoGrid({ basic }) {
       .map((field) => [field.label || '自定义', field.value]),
   ].filter(([, value]) => value);
 
+  const gridClass = fields.length <= 4 ? 'resume-basic-grid is-two-column' : 'resume-basic-grid';
+
   return (
-    <div className="resume-basic-grid">
+    <div className={gridClass}>
       {fields.map(([label, value], index) => (
         <p key={`${label}-${index}`}>
           <span>{label}</span>
@@ -119,6 +122,7 @@ function BasicInfoGrid({ basic }) {
 
 function Section({ hiddenSections, name, title, children }) {
   if ((hiddenSections || []).includes(name)) return null;
+
   return (
     <>
       <ResumeSectionTitle>{title}</ResumeSectionTitle>
