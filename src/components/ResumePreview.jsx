@@ -204,13 +204,21 @@ export default function ResumePreview({ resume, previewRef }) {
         </Section>
 
         <Section hiddenSections={hiddenSections} name="projects" title="项目经验">
-          {resume.projects.map((project) => (
+          {(resume.projects || []).map((project) => (
             <ExperienceBlock key={project.id} item={project} />
           ))}
         </Section>
 
+        {!hiddenSections.includes('internships') && (resume.internships || []).length > 0 && (
+          <Section hiddenSections={hiddenSections} name="internships" title="实习经历">
+            {(resume.internships || []).map((internship) => (
+              <ExperienceBlock key={internship.id} item={internship} />
+            ))}
+          </Section>
+        )}
+
         <Section hiddenSections={hiddenSections} name="campus" title="校园经历">
-          {resume.campus.map((campus) => (
+          {(resume.campus || []).map((campus) => (
             <ExperienceBlock key={campus.id} item={campus} />
           ))}
         </Section>

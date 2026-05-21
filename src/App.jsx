@@ -1,6 +1,5 @@
 import { Download, FileText, Printer, RotateCcw, Save } from 'lucide-react';
-import React from 'react';
-import { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import ResumeEditor from './components/ResumeEditor.jsx';
 import ResumePreview from './components/ResumePreview.jsx';
 import { defaultResumeData } from './data/defaultResumeData.js';
@@ -11,6 +10,7 @@ const initialOpenSections = {
   basic: true,
   education: true,
   projects: true,
+  internships: false,
   campus: false,
   skills: false,
   honors: false,
@@ -53,7 +53,7 @@ export default function App() {
   const handleExportPdf = async () => {
     setIsExporting(true);
     try {
-      const fileName = `${resume.basic.name || '中文'}-${resume.basic.targetRole || '简历'}-简历.pdf`;
+      const fileName = `${resume.basic?.name || '中文'}-${resume.basic?.targetRole || '简历'}-简历.pdf`;
       await exportResumePdf(previewRef.current, fileName);
     } catch (error) {
       window.alert(`PDF 导出失败：${error.message || '请稍后重试'}`);

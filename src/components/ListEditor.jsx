@@ -1,20 +1,22 @@
 import { Plus, Trash2 } from 'lucide-react';
 import React from 'react';
 
-export default function ListEditor({ items, onChange, addLabel = '增加一条', placeholder = '' }) {
+export default function ListEditor({ items = [], onChange, addLabel = '增加一条', placeholder = '' }) {
+  const safeItems = items.length ? items : [''];
+
   const updateItem = (index, value) => {
-    onChange(items.map((item, currentIndex) => (currentIndex === index ? value : item)));
+    onChange(safeItems.map((item, currentIndex) => (currentIndex === index ? value : item)));
   };
 
-  const addItem = () => onChange([...(items || []), '']);
+  const addItem = () => onChange([...safeItems, '']);
   const removeItem = (index) => {
-    const next = (items || []).filter((_, currentIndex) => currentIndex !== index);
+    const next = safeItems.filter((_, currentIndex) => currentIndex !== index);
     onChange(next.length ? next : ['']);
   };
 
   return (
     <div className="space-y-3">
-      {(items || ['']).map((item, index) => (
+      {safeItems.map((item, index) => (
         <div key={`list-item-${index}`} className="grid grid-cols-[1fr_34px] gap-2">
           <textarea
             value={item}
