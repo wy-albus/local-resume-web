@@ -109,6 +109,31 @@ body {
   min-height: 0;
 }
 
+.resume-page-block {
+  break-inside: avoid;
+}
+
+.resume-measurement {
+  position: fixed;
+  top: 0;
+  left: -10000px;
+  z-index: -1;
+  width: 794px;
+  pointer-events: none;
+  visibility: hidden;
+}
+
+.resume-measure-page {
+  width: 794px;
+  min-height: 1123px;
+  padding: 30px 32px;
+  color: #444444;
+}
+
+.resume-measure-block {
+  width: 100%;
+}
+
 .resume-header {
   display: grid;
   grid-template-columns: 1fr 112px;

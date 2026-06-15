@@ -1,5 +1,7 @@
-import React from 'react';
+import React, { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import ResumeSectionTitle from './ResumeSectionTitle.jsx';
+
+const PAGE_CONTENT_HEIGHT = 1123 - 30 * 2;
 
 const basicFieldConfig = [
   ['age', '年龄'],
@@ -27,6 +29,8 @@ const normalizeDescription = (description) => {
     },
   };
 };
+
+const hasListContent = (items) => (items || []).some(Boolean);
 
 function BulletList({ items }) {
   const visibleItems = (items || []).filter(Boolean);
@@ -120,125 +124,253 @@ function BasicInfoGrid({ basic }) {
   );
 }
 
-function Section({ hiddenSections, name, title, children }) {
-  if ((hiddenSections || []).includes(name)) return null;
+function ResumeHeader({ basic }) {
+  const hiddenBasicFields = basic.hiddenFields || [];
+  const avatarFit = basic.avatarFit || { x: 50, y: 50, scale: 1 };
 
   return (
-    <>
-      <ResumeSectionTitle>{title}</ResumeSectionTitle>
-      {children}
-    </>
+    <header className="resume-header">
+      <div>
+        {!hiddenBasicFields.includes('name') && <h1>{basic.name}</h1>}
+        {!hiddenBasicFields.includes('targetRole') && (
+          <p className="resume-role">求职岗位：{basic.targetRole}</p>
+        )}
+        <BasicInfoGrid basic={basic} />
+      </div>
+      <div className="resume-avatar-wrap">
+        {basic.avatar ? (
+          <div className="resume-avatar-frame">
+            <div
+              className="resume-avatar-bg"
+              role="img"
+              aria-label="头像"
+              style={{
+                backgroundImage: `url("${basic.avatar}")`,
+                backgroundPosition: `${avatarFit.x}% ${avatarFit.y}%`,
+                transform: `scale(${avatarFit.scale})`,
+              }}
+            />
+          </div>
+        ) : (
+          <div className="resume-avatar-placeholder">证件照</div>
+        )}
+      </div>
+    </header>
   );
 }
 
-const hasListContent = (items) => (items || []).some(Boolean);
-
-export default function ResumePreview({ resume, previewRef }) {
-  const { basic, education } = resume;
-  const hiddenBasicFields = basic.hiddenFields || [];
+function EducationBlock({ education }) {
   const hiddenEducationFields = education.hiddenFields || [];
-  const hiddenSections = resume.meta.hiddenSections || [];
-  const avatarFit = basic.avatarFit || { x: 50, y: 50, scale: 1 };
-
   const showEducation = (field) => !hiddenEducationFields.includes(field);
   const majorDegree = [
     showEducation('major') ? education.major : '',
     showEducation('degree') ? `（${education.degree}）` : '',
   ].join('');
 
-  const showSecondPage =
-    (!hiddenSections.includes('honors') && hasListContent(resume.honors)) ||
-    (!hiddenSections.includes('summary') && Boolean(resume.summary?.trim()));
+  return (
+    <>
+      <ResumeSectionTitle>教育背景</ResumeSectionTitle>
+      <div className="resume-education">
+        <div className="resume-three-col">
+          <div>{showEducation('period') ? education.period : ''}</div>
+          <div>{showEducation('school') ? education.school : ''}</div>
+          <div>{majorDegree}</div>
+        </div>
+        {showEducation('gpa') && (
+          <p>
+            <strong>专业成绩：</strong>
+            {education.gpa}
+          </p>
+        )}
+        {showEducation('courses') && (
+          <p>
+            <strong>主修课程：</strong>
+            {education.courses}
+          </p>
+        )}
+      </div>
+    </>
+  );
+}
+
+function SectionListBlock({ title, items }) {
+  return (
+    <>
+      <ResumeSectionTitle>{title}</ResumeSectionTitle>
+      <BulletList items={items} />
+    </>
+  );
+}
+
+function SummaryBlock({ summary }) {
+  return (
+    <>
+      <ResumeSectionTitle>自我评价</ResumeSectionTitle>
+      <p className="resume-summary">{summary}</p>
+    </>
+  );
+}
+
+function SectionTitleBlock({ title }) {
+  return <ResumeSectionTitle>{title}</ResumeSectionTitle>;
+}
+
+function createResumeBlocks(resume) {
+  const hiddenSections = resume.meta?.hiddenSections || [];
+  const isVisible = (section) => !hiddenSections.includes(section);
+  const blocks = [{ id: 'header', type: 'header', render: () => <ResumeHeader basic={resume.basic} /> }];
+
+  if (isVisible('education')) {
+    blocks.push({
+      id: 'education',
+      type: 'single',
+      render: () => <EducationBlock education={resume.education} />,
+    });
+  }
+
+  const addExperienceSection = (section, title, items) => {
+    if (!isVisible(section) || !(items || []).length) return;
+
+    blocks.push({
+      id: `${section}-title`,
+      type: 'section-title',
+      section,
+      render: () => <SectionTitleBlock title={title} />,
+    });
+
+    items.forEach((item) => {
+      blocks.push({
+        id: `${section}-${item.id}`,
+        type: 'experience',
+        section,
+        render: () => <ExperienceBlock item={item} />,
+      });
+    });
+  };
+
+  addExperienceSection('projects', '项目经验', resume.projects);
+  addExperienceSection('internships', '实习经历', resume.internships);
+  addExperienceSection('campus', '校园经历', resume.campus);
+
+  if (isVisible('skills') && hasListContent(resume.skills)) {
+    blocks.push({
+      id: 'skills',
+      type: 'single',
+      render: () => <SectionListBlock title="技能特长" items={resume.skills} />,
+    });
+  }
+
+  if (isVisible('honors') && hasListContent(resume.honors)) {
+    blocks.push({
+      id: 'honors',
+      type: 'single',
+      render: () => <SectionListBlock title="荣誉证书" items={resume.honors} />,
+    });
+  }
+
+  if (isVisible('summary') && resume.summary?.trim()) {
+    blocks.push({
+      id: 'summary',
+      type: 'single',
+      render: () => <SummaryBlock summary={resume.summary} />,
+    });
+  }
+
+  return blocks;
+}
+
+function paginateBlocks(blocks, heights) {
+  const pages = [[]];
+  let currentHeight = 0;
+
+  const nextPage = () => {
+    if (pages[pages.length - 1].length > 0) {
+      pages.push([]);
+      currentHeight = 0;
+    }
+  };
+
+  blocks.forEach((block, index) => {
+    const blockHeight = heights[block.id] || 0;
+    const nextBlock = blocks[index + 1];
+
+    if (block.type === 'section-title' && nextBlock?.section === block.section) {
+      const firstItemHeight = heights[nextBlock.id] || 0;
+      if (currentHeight > 0 && currentHeight + blockHeight + firstItemHeight > PAGE_CONTENT_HEIGHT) {
+        nextPage();
+      }
+    } else if (currentHeight > 0 && currentHeight + blockHeight > PAGE_CONTENT_HEIGHT) {
+      nextPage();
+    }
+
+    pages[pages.length - 1].push(block.id);
+    currentHeight += blockHeight;
+  });
+
+  return pages.filter((page) => page.length > 0);
+}
+
+function MeasurementLayer({ blocks, measureRef }) {
+  return (
+    <div className="resume-measurement" aria-hidden="true">
+      <article className="resume-measure-page bg-white text-ink">
+        <div ref={measureRef} className="resume-page-content">
+          {blocks.map((block) => (
+            <div key={block.id} className="resume-measure-block" data-block-id={block.id}>
+              {block.render()}
+            </div>
+          ))}
+        </div>
+      </article>
+    </div>
+  );
+}
+
+export default function ResumePreview({ resume, previewRef }) {
+  const blocks = useMemo(() => createResumeBlocks(resume), [resume]);
+  const blockMap = useMemo(() => new Map(blocks.map((block) => [block.id, block])), [blocks]);
+  const measureRef = useRef(null);
+  const [pageBlockIds, setPageBlockIds] = useState([blocks.map((block) => block.id)]);
+
+  useLayoutEffect(() => {
+    const measure = () => {
+      const nodes = Array.from(measureRef.current?.querySelectorAll('[data-block-id]') || []);
+      if (!nodes.length) return;
+
+      const heights = nodes.reduce((result, node) => {
+        result[node.dataset.blockId] = node.getBoundingClientRect().height;
+        return result;
+      }, {});
+
+      setPageBlockIds(paginateBlocks(blocks, heights));
+    };
+
+    measure();
+
+    if (!window.ResizeObserver || !measureRef.current) return undefined;
+
+    const observer = new ResizeObserver(measure);
+    observer.observe(measureRef.current);
+
+    return () => observer.disconnect();
+  }, [blocks]);
 
   return (
     <div ref={previewRef} className="resume-document">
-      <Page>
-        <header className="resume-header">
-          <div>
-            {!hiddenBasicFields.includes('name') && <h1>{basic.name}</h1>}
-            {!hiddenBasicFields.includes('targetRole') && (
-              <p className="resume-role">求职岗位：{basic.targetRole}</p>
-            )}
-            <BasicInfoGrid basic={basic} />
-          </div>
-          <div className="resume-avatar-wrap">
-            {basic.avatar ? (
-              <div className="resume-avatar-frame">
-                <div
-                  className="resume-avatar-bg"
-                  role="img"
-                  aria-label="头像"
-                  style={{
-                    backgroundImage: `url("${basic.avatar}")`,
-                    backgroundPosition: `${avatarFit.x}% ${avatarFit.y}%`,
-                    transform: `scale(${avatarFit.scale})`,
-                  }}
-                />
+      <MeasurementLayer blocks={blocks} measureRef={measureRef} />
+
+      {pageBlockIds.map((page, pageIndex) => (
+        <Page key={`page-${pageIndex}`}>
+          {page.map((blockId) => {
+            const block = blockMap.get(blockId);
+            return block ? (
+              <div key={block.id} className="resume-page-block">
+                {block.render()}
               </div>
-            ) : (
-              <div className="resume-avatar-placeholder">证件照</div>
-            )}
-          </div>
-        </header>
-
-        <Section hiddenSections={hiddenSections} name="education" title="教育背景">
-          <div className="resume-education">
-            <div className="resume-three-col">
-              <div>{showEducation('period') ? education.period : ''}</div>
-              <div>{showEducation('school') ? education.school : ''}</div>
-              <div>{majorDegree}</div>
-            </div>
-            {showEducation('gpa') && (
-              <p>
-                <strong>专业成绩：</strong>
-                {education.gpa}
-              </p>
-            )}
-            {showEducation('courses') && (
-              <p>
-                <strong>主修课程：</strong>
-                {education.courses}
-              </p>
-            )}
-          </div>
-        </Section>
-
-        <Section hiddenSections={hiddenSections} name="projects" title="项目经验">
-          {(resume.projects || []).map((project) => (
-            <ExperienceBlock key={project.id} item={project} />
-          ))}
-        </Section>
-
-        {!hiddenSections.includes('internships') && (resume.internships || []).length > 0 && (
-          <Section hiddenSections={hiddenSections} name="internships" title="实习经历">
-            {(resume.internships || []).map((internship) => (
-              <ExperienceBlock key={internship.id} item={internship} />
-            ))}
-          </Section>
-        )}
-
-        <Section hiddenSections={hiddenSections} name="campus" title="校园经历">
-          {(resume.campus || []).map((campus) => (
-            <ExperienceBlock key={campus.id} item={campus} />
-          ))}
-        </Section>
-
-        <Section hiddenSections={hiddenSections} name="skills" title="技能特长">
-          <BulletList items={resume.skills} />
-        </Section>
-      </Page>
-
-      {showSecondPage && (
-        <Page>
-          <Section hiddenSections={hiddenSections} name="honors" title="荣誉证书">
-            <BulletList items={resume.honors} />
-          </Section>
-
-          <Section hiddenSections={hiddenSections} name="summary" title="自我评价">
-            <p className="resume-summary">{resume.summary}</p>
-          </Section>
+            ) : null;
+          })}
         </Page>
-      )}
+      ))}
     </div>
   );
 }
