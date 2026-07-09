@@ -1,107 +1,126 @@
-import { Download, FileText, Printer, RotateCcw, Save } from 'lucide-react';
-import React, { useEffect, useRef, useState } from 'react';
-import ResumeEditor from './components/ResumeEditor.jsx';
-import ResumePreview from './components/ResumePreview.jsx';
-import { defaultResumeData } from './data/defaultResumeData.js';
-import { exportResumePdf } from './utils/exportPdf.js';
-import { loadResumeData, saveResumeData } from './utils/storage.js';
-
-const initialOpenSections = {
-  basic: true,
-  education: true,
-  projects: true,
-  internships: false,
-  campus: false,
-  skills: false,
-  honors: false,
-  summary: false,
-};
-
-const cloneDefaultData = () => JSON.parse(JSON.stringify(defaultResumeData));
+import React, { useEffect, useMemo, useState } from 'react';
+import LandingPage from './pages/LandingPage.jsx';
+import ResumeBuilder from './pages/ResumeBuilder.jsx';
+import ResumeGallery from './pages/ResumeGallery.jsx';
+import {
+  addResume,
+  createInitialResumeAppData,
+  createResumeByRole,
+  createResumeFromData,
+  duplicateResume,
+  getActiveResume,
+  removeResume,
+  renameResume,
+  saveResumeAppData,
+  updateResumeData,
+} from './utils/resumeStorage.js';
 
 export default function App() {
-  const [resume, setResume] = useState(() => loadResumeData() || cloneDefaultData());
-  const [openSections, setOpenSections] = useState(initialOpenSections);
+  const [page, setPage] = useState('landing');
+  const [appData, setAppData] = useState(() => createInitialResumeAppData());
   const [saveStatus, setSaveStatus] = useState('已自动保存');
-  const [isExporting, setIsExporting] = useState(false);
-  const previewRef = useRef(null);
+
+  const activeResume = useMemo(() => getActiveResume(appData), [appData]);
 
   useEffect(() => {
-    setSaveStatus('正在保存...');
+    setSaveStatus('保存中...');
     const timer = window.setTimeout(() => {
-      const saved = saveResumeData(resume);
+      const saved = saveResumeAppData(appData);
       setSaveStatus(saved ? '已自动保存' : '本地保存失败');
     }, 250);
 
     return () => window.clearTimeout(timer);
-  }, [resume]);
+  }, [appData]);
+
+  const switchToBuilder = (resumeId) => {
+    setAppData((current) => ({ ...current, activeResumeId: resumeId }));
+    setPage('builder');
+  };
+
+  const handleCreateResume = ({ role, name, targetRole, mode }) => {
+    setAppData((current) => {
+      const currentResume = getActiveResume(current);
+      const nextResume =
+        mode === 'copy-current' && currentResume
+          ? createResumeFromData(currentResume.data, { name, targetRole })
+          : createResumeByRole(role, { name, targetRole });
+
+      return addResume(current, nextResume);
+    });
+    setPage('builder');
+  };
+
+  const handleDuplicateResume = (resumeId) => {
+    setAppData((current) => {
+      const source = current.resumes.find((resume) => resume.id === resumeId);
+      if (!source) return current;
+      return addResume(current, duplicateResume(source));
+    });
+    setPage('gallery');
+  };
+
+  const handleRenameResume = (resumeId) => {
+    const currentResume = appData.resumes.find((resume) => resume.id === resumeId);
+    if (!currentResume) return;
+
+    const nextName = window.prompt('请输入新的简历名称', currentResume.name);
+    if (!nextName) return;
+
+    setAppData((current) => renameResume(current, resumeId, nextName));
+  };
+
+  const handleDeleteResume = (resumeId) => {
+    const confirmed = window.confirm('确定要删除这份简历吗？此操作不可恢复。');
+    if (!confirmed) return;
+
+    setAppData((current) => removeResume(current, resumeId));
+    setPage('gallery');
+  };
+
+  const handleResumeChange = (nextResumeOrUpdater) => {
+    setAppData((current) => {
+      const currentResume = getActiveResume(current);
+      if (!currentResume) return current;
+
+      const nextResumeData =
+        typeof nextResumeOrUpdater === 'function'
+          ? nextResumeOrUpdater(currentResume.data)
+          : nextResumeOrUpdater;
+
+      return updateResumeData(current, currentResume.id, nextResumeData);
+    });
+  };
 
   const handleManualSave = () => {
-    const saved = saveResumeData(resume);
+    const saved = saveResumeAppData(appData);
     setSaveStatus(saved ? '已保存到本地' : '本地保存失败');
   };
 
-  const handleReset = () => {
-    setResume(cloneDefaultData());
-    setOpenSections(initialOpenSections);
-  };
+  if (page === 'landing') {
+    return <LandingPage onEnter={() => setPage('gallery')} />;
+  }
 
-  const handlePrint = () => {
-    window.print();
-  };
-
-  const handleExportPdf = async () => {
-    setIsExporting(true);
-    try {
-      const fileName = `${resume.basic?.name || '中文'}-${resume.basic?.targetRole || '简历'}-简历.pdf`;
-      await exportResumePdf(previewRef.current, fileName);
-    } catch (error) {
-      window.alert(`PDF 导出失败：${error.message || '请稍后重试'}`);
-    } finally {
-      setIsExporting(false);
-    }
-  };
+  if (page === 'builder' && activeResume) {
+    return (
+      <ResumeBuilder
+        resumeRecord={activeResume}
+        saveStatus={saveStatus}
+        onBack={() => setPage('gallery')}
+        onResumeChange={handleResumeChange}
+        onManualSave={handleManualSave}
+      />
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-slate-100 text-slate-900">
-      <main className="grid min-h-screen grid-cols-1 lg:grid-cols-[38%_62%]">
-        <ResumeEditor
-          resume={resume}
-          setResume={setResume}
-          openSections={openSections}
-          setOpenSections={setOpenSections}
-          saveStatus={saveStatus}
-        />
-
-        <section className="preview-panel">
-          <div className="preview-toolbar">
-            <button className="toolbar-button primary" onClick={handleExportPdf} disabled={isExporting}>
-              <Download size={17} />
-              {isExporting ? '正在生成 PDF...' : '下载 PDF'}
-            </button>
-            <button className="toolbar-button" onClick={handleManualSave}>
-              <Save size={17} />
-              保存到本地
-            </button>
-            <button className="toolbar-button" onClick={handleReset}>
-              <RotateCcw size={17} />
-              恢复默认内容
-            </button>
-            <button className="toolbar-button" onClick={handlePrint}>
-              <Printer size={17} />
-              打印预览
-            </button>
-          </div>
-
-          <div className="flex justify-center px-4 pb-10">
-            <ResumePreview resume={resume} previewRef={previewRef} />
-          </div>
-
-          <div className="sr-only">
-            <FileText />
-          </div>
-        </section>
-      </main>
-    </div>
+    <ResumeGallery
+      resumes={appData.resumes}
+      activeResume={activeResume}
+      onCreate={handleCreateResume}
+      onEdit={switchToBuilder}
+      onDuplicate={handleDuplicateResume}
+      onRename={handleRenameResume}
+      onDelete={handleDeleteResume}
+    />
   );
 }

@@ -3,6 +3,7 @@ export const defaultResumeData = {
     templateName: '经典中文简历',
     resumeName: '吴咏-产品经理实习生',
     hiddenSections: ['internships'],
+    targetRoleVisibilityConfigured: true,
   },
   basic: {
     name: '吴咏',
@@ -19,7 +20,7 @@ export const defaultResumeData = {
       y: 50,
       scale: 1,
     },
-    hiddenFields: [],
+    hiddenFields: ['targetRole'],
     extraFields: [],
   },
   education: {

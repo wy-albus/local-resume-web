@@ -165,7 +165,31 @@ export default function ResumeEditor({ resume, setResume, openSections, setOpenS
   const hiddenModuleConfigs = moduleConfigs.filter((module) => hiddenSections.includes(module.key));
 
   const hideBasicField = (key) => {
-    updateGroup('basic', 'hiddenFields', [...new Set([...hiddenFields, key])]);
+    setResume((current) => ({
+      ...current,
+      meta: {
+        ...(current.meta || {}),
+        targetRoleVisibilityConfigured: true,
+      },
+      basic: {
+        ...(current.basic || {}),
+        hiddenFields: [...new Set([...(current.basic?.hiddenFields || []), key])],
+      },
+    }));
+  };
+
+  const showBasicField = (key) => {
+    setResume((current) => ({
+      ...current,
+      meta: {
+        ...(current.meta || {}),
+        targetRoleVisibilityConfigured: true,
+      },
+      basic: {
+        ...(current.basic || {}),
+        hiddenFields: (current.basic?.hiddenFields || []).filter((item) => item !== key),
+      },
+    }));
   };
 
   const hideEducationField = (key) => {
@@ -191,6 +215,8 @@ export default function ResumeEditor({ resume, setResume, openSections, setOpenS
     );
   };
 
+  const hiddenBasicFields = basicFields.filter((field) => hiddenFields.includes(field.key));
+
   return (
     <aside className="editor-panel">
       <div className="sticky top-0 z-10 border-b border-slate-200 bg-slate-50/95 px-5 py-4 backdrop-blur">
@@ -205,14 +231,6 @@ export default function ResumeEditor({ resume, setResume, openSections, setOpenS
             <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">
               {saveStatus}
             </span>
-          </div>
-          <div className="mt-4">
-            <TextInput
-              label="求职岗位（显示在简历顶部）"
-              value={resume.basic?.targetRole}
-              onChange={(value) => updateGroup('basic', 'targetRole', value)}
-              placeholder="例如：产品经理实习生"
-            />
           </div>
         </div>
       </div>
@@ -238,6 +256,25 @@ export default function ResumeEditor({ resume, setResume, openSections, setOpenS
         )}
 
         <EditorCard title="基本信息" open={openSections.basic} onToggle={() => toggleSection('basic')}>
+          {hiddenBasicFields.length > 0 && (
+            <section className="rounded-lg border border-dashed border-resumeBlue/30 bg-slate-50/70 p-3">
+              <div className="mb-2 text-sm font-semibold text-slate-700">可选添加</div>
+              <div className="flex flex-wrap gap-2">
+                {hiddenBasicFields.map((field) => (
+                  <button
+                    key={field.key}
+                    type="button"
+                    onClick={() => showBasicField(field.key)}
+                    className="inline-flex items-center gap-1.5 rounded-md border border-resumeBlue/30 px-3 py-2 text-sm font-medium text-resumeBlue transition hover:bg-resumeBlue/5"
+                  >
+                    <Plus size={15} />
+                    {field.label}
+                  </button>
+                ))}
+              </div>
+            </section>
+          )}
+
           <div className="grid gap-3 sm:grid-cols-2">
             {basicFields
               .filter((field) => !hiddenFields.includes(field.key))
