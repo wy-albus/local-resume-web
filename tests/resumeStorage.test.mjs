@@ -28,7 +28,7 @@ const assertIsoDate = (value) => {
   assert.equal(appData.activeResumeId, appData.resumes[0].id);
   assert.equal(appData.resumes[0].name, '吴咏-产品经理实习生');
   assert.equal(appData.resumes[0].targetRole, '产品经理实习生');
-  assert.ok(appData.resumes[0].data.basic.hiddenFields.includes('targetRole'));
+  assert.ok(!appData.resumes[0].data.basic.hiddenFields.includes('targetRole'));
 }
 
 {
@@ -37,7 +37,7 @@ const assertIsoDate = (value) => {
   assert.equal(resume.name, '吴咏-数据分析师实习生');
   assert.equal(resume.targetRole, '数据分析师实习生');
   assert.equal(resume.data.basic.targetRole, '数据分析师实习生');
-  assert.ok(resume.data.basic.hiddenFields.includes('targetRole'));
+  assert.ok(!resume.data.basic.hiddenFields.includes('targetRole'));
   assert.ok(resume.data.skills.some((item) => item.includes('Python')));
   assert.ok(resume.data.projects[0].name.includes('微博 315'));
 }

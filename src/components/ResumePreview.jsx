@@ -131,10 +131,9 @@ function ResumeHeader({ basic }) {
   return (
     <header className="resume-header">
       <div>
-        {!hiddenBasicFields.includes('name') && <h1>{basic.name}</h1>}
-        {!hiddenBasicFields.includes('targetRole') && (
-          <p className="resume-role">求职岗位：{basic.targetRole}</p>
-        )}
+        <div className="resume-identity">
+          {!hiddenBasicFields.includes('name') && <h1>{basic.name}</h1>}
+        </div>
         <BasicInfoGrid basic={basic} />
       </div>
       <div className="resume-avatar-wrap">

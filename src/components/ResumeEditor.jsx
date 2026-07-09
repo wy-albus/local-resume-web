@@ -22,7 +22,6 @@ const createExperienceItem = (prefix) => ({
 
 const basicFields = [
   { key: 'name', label: '姓名' },
-  { key: 'targetRole', label: '求职岗位' },
   { key: 'age', label: '年龄' },
   { key: 'gender', label: '性别' },
   { key: 'ethnicity', label: '民族' },

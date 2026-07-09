@@ -28,24 +28,18 @@ function normalizeResumeRecord(record, options = {}) {
   const data = clone(record?.data || record || defaultResumeData);
   const targetRole = record?.targetRole || data.basic?.targetRole || '产品经理实习生';
   const name = record?.name || data.meta?.resumeName || `${data.basic?.name || '吴咏'}-${targetRole}`;
-  const targetRoleVisibilityConfigured = Boolean(data.meta?.targetRoleVisibilityConfigured);
-  const hiddenFields = new Set(data.basic?.hiddenFields || []);
-
-  if (!targetRoleVisibilityConfigured) {
-    hiddenFields.add('targetRole');
-  }
+  const hiddenFields = (data.basic?.hiddenFields || []).filter((field) => field !== 'targetRole');
 
   data.basic = {
     ...(defaultResumeData.basic || {}),
     ...(data.basic || {}),
     targetRole,
-    hiddenFields: [...hiddenFields],
+    hiddenFields,
   };
   data.meta = {
     ...(defaultResumeData.meta || {}),
     ...(data.meta || {}),
     resumeName: name,
-    targetRoleVisibilityConfigured: true,
   };
 
   return {
