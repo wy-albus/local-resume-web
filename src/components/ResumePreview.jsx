@@ -1,5 +1,6 @@
 import React, { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import ResumeSectionTitle from './ResumeSectionTitle.jsx';
+import { normalizeInlineStyles, splitTextByInlineStyles } from '../utils/richText.js';
 
 const PAGE_CONTENT_HEIGHT = 1123 - 30 * 2;
 
@@ -27,6 +28,7 @@ const normalizeDescription = (description) => {
       bold: Boolean(description?.style?.bold),
       italic: Boolean(description?.style?.italic),
     },
+    inlineStyles: normalizeInlineStyles(description?.inlineStyles, description?.text || ''),
   };
 };
 
@@ -69,7 +71,19 @@ function DescriptionList({ items }) {
             <span className="resume-description-marker">
               {marker === 'number' ? `${index + 1}.` : marker === 'dot' ? '•' : ''}
             </span>
-            <span>{description.text}</span>
+            <span className="resume-description-text">
+              {splitTextByInlineStyles(description.text, description.inlineStyles).map((part, partIndex) => (
+                <span
+                  key={`${description.text}-${index}-${partIndex}`}
+                  className={[
+                    part.bold ? 'is-bold' : '',
+                    part.italic ? 'is-italic' : '',
+                  ].join(' ')}
+                >
+                  {part.text}
+                </span>
+              ))}
+            </span>
           </div>
         );
       })}

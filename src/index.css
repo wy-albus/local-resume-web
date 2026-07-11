@@ -804,6 +804,14 @@ textarea {
   font-style: italic;
 }
 
+.resume-description-text .is-bold {
+  font-weight: 700;
+}
+
+.resume-description-text .is-italic {
+  font-style: italic;
+}
+
 .resume-description-marker {
   color: #444444;
   text-align: left;

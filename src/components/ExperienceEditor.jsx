@@ -1,6 +1,7 @@
 import { Bold, GripVertical, Italic, List, ListOrdered, Plus, Trash2 } from 'lucide-react';
-import React from 'react';
+import React, { useRef } from 'react';
 import TextInput from './TextInput.jsx';
+import { applyInlineStyle, normalizeInlineStyles } from '../utils/richText.js';
 
 const createItem = (prefix) => ({
   id: `${prefix}-${Date.now()}`,
@@ -15,6 +16,7 @@ const normalizeDescription = (description) => {
     return {
       text: description,
       style: { marker: 'dot', bold: false, italic: false },
+      inlineStyles: [],
     };
   }
 
@@ -25,6 +27,7 @@ const normalizeDescription = (description) => {
       bold: Boolean(description?.style?.bold),
       italic: Boolean(description?.style?.italic),
     },
+    inlineStyles: normalizeInlineStyles(description?.inlineStyles, description?.text || ''),
   };
 };
 
@@ -61,6 +64,9 @@ export default function ExperienceEditor({
   nameLabel = '名称',
   roleLabel = '角色',
 }) {
+  const textareaRefs = useRef(new Map());
+  const selectionRefs = useRef(new Map());
+
   const updateItem = (index, field, value) => {
     onChange(
       items.map((item, currentIndex) =>
@@ -82,6 +88,54 @@ export default function ExperienceEditor({
       },
     };
     updateItem(itemIndex, 'descriptions', descriptions);
+  };
+
+  const applySelectionStyle = (itemIndex, descriptionIndex, styleKey) => {
+    const key = `${itemIndex}-${descriptionIndex}`;
+    const textarea = textareaRefs.current.get(key);
+    if (!textarea) return;
+
+    const cachedSelection = selectionRefs.current.get(key);
+    const selectionStart = cachedSelection?.start ?? textarea.selectionStart ?? 0;
+    const selectionEnd = cachedSelection?.end ?? textarea.selectionEnd ?? 0;
+    if (selectionStart === selectionEnd) {
+      window.alert('请先选中需要加粗的文字');
+      textarea.focus();
+      return;
+    }
+
+    const descriptions = descriptionsFor(items[itemIndex]);
+    descriptions[descriptionIndex] = applyInlineStyle(
+      descriptions[descriptionIndex],
+      styleKey,
+      selectionStart,
+      selectionEnd,
+    );
+    updateItem(itemIndex, 'descriptions', descriptions);
+
+    window.setTimeout(() => {
+      textarea.focus();
+      textarea.setSelectionRange(selectionStart, selectionEnd);
+    }, 0);
+  };
+
+  const recordSelection = (itemIndex, descriptionIndex) => {
+    const key = `${itemIndex}-${descriptionIndex}`;
+    const textarea = textareaRefs.current.get(key);
+    if (!textarea) return;
+
+    selectionRefs.current.set(key, {
+      start: textarea.selectionStart ?? 0,
+      end: textarea.selectionEnd ?? 0,
+    });
+  };
+
+  const handleDescriptionKeyDown = (event, itemIndex, descriptionIndex) => {
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'b') {
+      event.preventDefault();
+      recordSelection(itemIndex, descriptionIndex);
+      applySelectionStyle(itemIndex, descriptionIndex, 'bold');
+    }
   };
 
   const addDescription = (itemIndex) => {
@@ -228,13 +282,9 @@ export default function ExperienceEditor({
                     <GripVertical size={14} />
                   </button>
                   <FormatButton
-                    active={description.style.bold}
-                    title="加粗"
-                    onClick={() =>
-                      updateDescription(index, descriptionIndex, {
-                        style: { bold: !description.style.bold },
-                      })
-                    }
+                    active={description.inlineStyles.some((range) => range.bold)}
+                    title="加粗选中文字"
+                    onClick={() => applySelectionStyle(index, descriptionIndex, 'bold')}
                   >
                     <Bold size={13} />
                   </FormatButton>
@@ -282,10 +332,26 @@ export default function ExperienceEditor({
                   </button>
                 </div>
                 <textarea
+                  ref={(node) => {
+                    const key = `${index}-${descriptionIndex}`;
+                    if (node) {
+                      textareaRefs.current.set(key, node);
+                    } else {
+                      textareaRefs.current.delete(key);
+                      selectionRefs.current.delete(key);
+                    }
+                  }}
                   value={description.text}
                   rows={2}
+                  onSelect={() => recordSelection(index, descriptionIndex)}
+                  onKeyDown={(event) => handleDescriptionKeyDown(event, index, descriptionIndex)}
+                  onKeyUp={() => recordSelection(index, descriptionIndex)}
+                  onMouseUp={() => recordSelection(index, descriptionIndex)}
                   onChange={(event) =>
-                    updateDescription(index, descriptionIndex, { text: event.target.value })
+                    updateDescription(index, descriptionIndex, {
+                      text: event.target.value,
+                      inlineStyles: normalizeInlineStyles(description.inlineStyles, event.target.value),
+                    })
                   }
                   className="w-full resize-y rounded-md border border-slate-200 bg-white px-3 py-2 text-sm leading-6 text-slate-800 outline-none transition hover:border-slate-300 focus:border-resumeBlue focus:ring-2 focus:ring-resumeBlue/15"
                 />
