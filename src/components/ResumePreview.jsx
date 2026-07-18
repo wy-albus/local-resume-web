@@ -1,6 +1,11 @@
 import React, { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import ResumeSectionTitle from './ResumeSectionTitle.jsx';
-import { normalizeInlineStyles, splitTextByInlineStyles } from '../utils/richText.js';
+import {
+  descriptionsToTextBlock,
+  normalizeInlineStyles,
+  splitTextBlockLines,
+  splitTextByInlineStyles,
+} from '../utils/richText.js';
 
 const PAGE_CONTENT_HEIGHT = 1123 - 30 * 2;
 
@@ -12,25 +17,6 @@ const basicFieldConfig = [
   ['phone', '电话'],
   ['email', '邮箱'],
 ];
-
-const normalizeDescription = (description) => {
-  if (typeof description === 'string') {
-    return {
-      text: description,
-      style: { marker: 'dot', bold: false, italic: false },
-    };
-  }
-
-  return {
-    text: description?.text || '',
-    style: {
-      marker: description?.style?.marker || 'dot',
-      bold: Boolean(description?.style?.bold),
-      italic: Boolean(description?.style?.italic),
-    },
-    inlineStyles: normalizeInlineStyles(description?.inlineStyles, description?.text || ''),
-  };
-};
 
 const hasListContent = (items) => (items || []).some(Boolean);
 
@@ -50,31 +36,31 @@ function BulletList({ items }) {
   );
 }
 
-function DescriptionList({ items }) {
-  const descriptions = (items || []).map(normalizeDescription).filter((item) => item.text);
-  if (!descriptions.length) return null;
+function TextBlockDescriptionList({ item }) {
+  const block =
+    typeof item.descriptionText === 'string'
+      ? {
+          text: item.descriptionText,
+          inlineStyles: normalizeInlineStyles(item.descriptionInlineStyles, item.descriptionText),
+        }
+      : descriptionsToTextBlock(item.descriptions || []);
+  const lines = splitTextBlockLines(block.text, block.inlineStyles);
+
+  if (!lines.length) return null;
 
   return (
     <div className="resume-description-list">
-      {descriptions.map((description, index) => {
-        const marker = description.style.marker;
-
+      {lines.map((line, index) => {
         return (
           <div
-            key={`${description.text}-${index}`}
-            className={[
-              'resume-description-row',
-              description.style.bold ? 'is-bold' : '',
-              description.style.italic ? 'is-italic' : '',
-            ].join(' ')}
+            key={`${line.text}-${index}`}
+            className={`resume-description-row ${line.marker === 'dot' ? '' : 'is-plain'}`}
           >
-            <span className="resume-description-marker">
-              {marker === 'number' ? `${index + 1}.` : marker === 'dot' ? '•' : ''}
-            </span>
+            <span className="resume-description-marker">{line.marker === 'dot' ? '•' : ''}</span>
             <span className="resume-description-text">
-              {splitTextByInlineStyles(description.text, description.inlineStyles).map((part, partIndex) => (
+              {splitTextByInlineStyles(line.text, line.inlineStyles).map((part, partIndex) => (
                 <span
-                  key={`${description.text}-${index}-${partIndex}`}
+                  key={`${line.text}-${index}-${partIndex}`}
                   className={[
                     part.bold ? 'is-bold' : '',
                     part.italic ? 'is-italic' : '',
@@ -99,7 +85,7 @@ function ExperienceBlock({ item }) {
         <div>{item.name}</div>
         <div>{item.role}</div>
       </div>
-      <DescriptionList items={item.descriptions} />
+      <TextBlockDescriptionList item={item} />
     </div>
   );
 }

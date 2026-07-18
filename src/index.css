@@ -804,6 +804,14 @@ textarea {
   font-style: italic;
 }
 
+.resume-description-row.is-plain {
+  grid-template-columns: 1fr;
+}
+
+.resume-description-row.is-plain .resume-description-marker {
+  display: none;
+}
+
 .resume-description-text .is-bold {
   font-weight: 700;
 }

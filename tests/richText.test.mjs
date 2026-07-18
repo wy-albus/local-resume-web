@@ -1,8 +1,11 @@
 import assert from 'node:assert/strict';
 import {
   applyInlineStyle,
+  descriptionsToTextBlock,
   normalizeInlineStyles,
   splitTextByInlineStyles,
+  splitTextBlockLines,
+  toggleBulletForLine,
 } from '../src/utils/richText.js';
 
 {
@@ -48,6 +51,65 @@ import {
     { text: '负责', bold: false, italic: false },
     { text: '需求分析', bold: true, italic: false },
   ]);
+}
+
+{
+  const block = descriptionsToTextBlock([
+    {
+      text: '项目背景：校园餐饮选择成本高',
+      style: { marker: 'none', bold: false, italic: false },
+    },
+    {
+      text: '需求拆解与产品规划：完成 MVP 规划',
+      style: { marker: 'dot', bold: false, italic: false },
+      inlineStyles: [{ start: 0, end: '需求拆解与产品规划'.length, bold: true }],
+    },
+    {
+      text: '项目产出：推荐接受率提升',
+      style: { marker: 'number', bold: false, italic: false },
+    },
+  ]);
+
+  assert.equal(
+    block.text,
+    '项目背景：校园餐饮选择成本高\n• 需求拆解与产品规划：完成 MVP 规划\n3. 项目产出：推荐接受率提升',
+  );
+  assert.equal(block.text.slice(block.inlineStyles[0].start, block.inlineStyles[0].end), '需求拆解与产品规划');
+  assert.deepEqual(block.inlineStyles[0], {
+    start: block.text.indexOf('需求拆解与产品规划'),
+    end: block.text.indexOf('需求拆解与产品规划') + '需求拆解与产品规划'.length,
+    bold: true,
+    italic: false,
+  });
+}
+
+{
+  const result = toggleBulletForLine('项目背景：测试\n需求拆解：测试', 3, 3, []);
+
+  assert.equal(result.text, '• 项目背景：测试\n需求拆解：测试');
+  assert.equal(result.selectionStart, 5);
+  assert.equal(result.selectionEnd, 5);
+}
+
+{
+  const result = toggleBulletForLine('项目背景：测试\n• 需求拆解：测试', 10, 10, [
+    { start: 10, end: 12, bold: true },
+  ]);
+
+  assert.equal(result.text, '项目背景：测试\n需求拆解：测试');
+  assert.deepEqual(result.inlineStyles, [{ start: 8, end: 10, bold: true, italic: false }]);
+}
+
+{
+  const lines = splitTextBlockLines('项目背景：测试\n• 需求拆解：测试', [
+    { start: 10, end: 12, bold: true },
+  ]);
+
+  assert.equal(lines[0].marker, 'none');
+  assert.equal(lines[0].text, '项目背景：测试');
+  assert.equal(lines[1].marker, 'dot');
+  assert.equal(lines[1].text, '需求拆解：测试');
+  assert.deepEqual(lines[1].inlineStyles, [{ start: 0, end: 2, bold: true, italic: false }]);
 }
 
 console.log('rich text tests passed');
