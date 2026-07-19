@@ -1,10 +1,12 @@
-import { ImagePlus, Plus, Trash2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, ImagePlus, Plus, Trash2 } from 'lucide-react';
 import React from 'react';
 import EditorCard from './EditorCard.jsx';
 import ExperienceEditor from './ExperienceEditor.jsx';
 import ListEditor from './ListEditor.jsx';
+import SkillsEditor from './SkillsEditor.jsx';
 import TextArea from './TextArea.jsx';
 import TextInput from './TextInput.jsx';
+import { moveVisibleSectionInOrder, normalizeSectionOrder } from '../utils/sectionOrder.js';
 
 const createBasicField = () => ({
   id: `basic-field-${Date.now()}`,
@@ -63,6 +65,39 @@ function DeleteSectionButton({ onClick }) {
       <Trash2 size={14} />
       删除
     </button>
+  );
+}
+
+function SectionActionButtons({ canMoveUp, canMoveDown, onMoveUp, onMoveDown, onDelete }) {
+  const handleClick = (event, action) => {
+    event.stopPropagation();
+    action();
+  };
+
+  return (
+    <div className="flex items-center gap-1">
+      <button
+        type="button"
+        onClick={(event) => handleClick(event, onMoveUp)}
+        disabled={!canMoveUp}
+        className="inline-flex h-7 w-7 items-center justify-center rounded-md text-slate-400 transition hover:bg-slate-100 hover:text-resumeBlue disabled:cursor-not-allowed disabled:opacity-35"
+        title="上移模块"
+        aria-label="上移模块"
+      >
+        <ArrowUp size={14} />
+      </button>
+      <button
+        type="button"
+        onClick={(event) => handleClick(event, onMoveDown)}
+        disabled={!canMoveDown}
+        className="inline-flex h-7 w-7 items-center justify-center rounded-md text-slate-400 transition hover:bg-slate-100 hover:text-resumeBlue disabled:cursor-not-allowed disabled:opacity-35"
+        title="下移模块"
+        aria-label="下移模块"
+      >
+        <ArrowDown size={14} />
+      </button>
+      <DeleteSectionButton onClick={onDelete} />
+    </div>
   );
 }
 
@@ -131,6 +166,21 @@ export default function ResumeEditor({ resume, setResume, openSections, setOpenS
     setOpenSections((current) => ({ ...current, [section]: true }));
   };
 
+  const moveSection = (section, direction) => {
+    setResume((current) => ({
+      ...current,
+      meta: {
+        ...current.meta,
+        sectionOrder: moveVisibleSectionInOrder(
+          current.meta?.sectionOrder,
+          section,
+          direction,
+          current.meta?.hiddenSections || [],
+        ),
+      },
+    }));
+  };
+
   const handleAvatarUpload = (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -162,6 +212,11 @@ export default function ResumeEditor({ resume, setResume, openSections, setOpenS
   const extraFields = resume.basic?.extraFields || [];
   const avatarFit = resume.basic?.avatarFit || { x: 50, y: 50, scale: 1 };
   const hiddenModuleConfigs = moduleConfigs.filter((module) => hiddenSections.includes(module.key));
+  const sectionOrder = normalizeSectionOrder(resume.meta?.sectionOrder);
+  const orderedModuleConfigs = sectionOrder
+    .map((section) => moduleConfigs.find((module) => module.key === section))
+    .filter(Boolean);
+  const visibleModuleConfigs = orderedModuleConfigs.filter((module) => !hiddenSections.includes(module.key));
 
   const hideBasicField = (key) => {
     setResume((current) => ({
@@ -215,6 +270,103 @@ export default function ResumeEditor({ resume, setResume, openSections, setOpenS
   };
 
   const hiddenBasicFields = basicFields.filter((field) => hiddenFields.includes(field.key));
+
+  const renderSectionEditor = (module, index) => {
+    const action = (
+      <SectionActionButtons
+        canMoveUp={index > 0}
+        canMoveDown={index < visibleModuleConfigs.length - 1}
+        onMoveUp={() => moveSection(module.key, 'up')}
+        onMoveDown={() => moveSection(module.key, 'down')}
+        onDelete={() => hideSection(module.key)}
+      />
+    );
+
+    if (module.key === 'education') {
+      return (
+        <EditorCard title="教育背景" open={openSections.education} onToggle={() => toggleSection('education')} action={action}>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {educationFields
+              .filter((field) => !hiddenEducationFields.includes(field.key))
+              .map((field) => (
+                <div key={field.key} className="grid grid-cols-[1fr_34px] gap-2">
+                  <TextInput label={field.label} value={resume.education?.[field.key]} onChange={(value) => updateGroup('education', field.key, value)} />
+                  <button type="button" onClick={() => hideEducationField(field.key)} className="mt-6 inline-flex h-9 w-8 items-center justify-center rounded-md text-slate-400 transition hover:bg-red-50 hover:text-red-600" title={`删除${field.label}`} aria-label={`删除${field.label}`}>
+                    <Trash2 size={15} />
+                  </button>
+                </div>
+              ))}
+            {!hiddenEducationFields.includes('courses') && (
+              <div className="grid gap-2 sm:col-span-2 sm:grid-cols-[1fr_34px]">
+                <TextArea label="主修课程" value={resume.education?.courses} onChange={(value) => updateGroup('education', 'courses', value)} rows={3} />
+                <button type="button" onClick={() => hideEducationField('courses')} className="mt-6 inline-flex h-9 w-8 items-center justify-center rounded-md text-slate-400 transition hover:bg-red-50 hover:text-red-600" title="删除主修课程" aria-label="删除主修课程">
+                  <Trash2 size={15} />
+                </button>
+              </div>
+            )}
+          </div>
+        </EditorCard>
+      );
+    }
+
+    if (module.key === 'projects') {
+      return (
+        <EditorCard title="项目经验" open={openSections.projects} onToggle={() => toggleSection('projects')} action={action}>
+          <ExperienceEditor titlePrefix="项目" nameLabel="项目名称" roleLabel="角色" items={resume.projects || []} onChange={(value) => updateRoot('projects', value)} />
+        </EditorCard>
+      );
+    }
+
+    if (module.key === 'internships') {
+      return (
+        <EditorCard title="实习经历" open={openSections.internships} onToggle={() => toggleSection('internships')} action={action}>
+          <ExperienceEditor titlePrefix="实习" nameLabel="公司/组织名称" roleLabel="岗位" items={resume.internships || []} onChange={(value) => updateRoot('internships', value)} />
+        </EditorCard>
+      );
+    }
+
+    if (module.key === 'campus') {
+      return (
+        <EditorCard title="校园经历" open={openSections.campus} onToggle={() => toggleSection('campus')} action={action}>
+          <ExperienceEditor titlePrefix="经历" nameLabel="组织名称" roleLabel="角色" items={resume.campus || []} onChange={(value) => updateRoot('campus', value)} />
+        </EditorCard>
+      );
+    }
+
+    if (module.key === 'skills') {
+      return (
+        <EditorCard title="技能特长" open={openSections.skills} onToggle={() => toggleSection('skills')} action={action}>
+          <SkillsEditor
+            resume={resume}
+            onChange={(value) =>
+              setResume((current) => ({
+                ...current,
+                ...value,
+              }))
+            }
+          />
+        </EditorCard>
+      );
+    }
+
+    if (module.key === 'honors') {
+      return (
+        <EditorCard title="荣誉证书" open={openSections.honors} onToggle={() => toggleSection('honors')} action={action}>
+          <ListEditor items={resume.honors || []} onChange={(value) => updateRoot('honors', value)} addLabel="增加证书" />
+        </EditorCard>
+      );
+    }
+
+    if (module.key === 'summary') {
+      return (
+        <EditorCard title="自我评价" open={openSections.summary} onToggle={() => toggleSection('summary')} action={action}>
+          <TextArea label="自我评价" rows={6} value={resume.summary} onChange={(value) => updateRoot('summary', value)} />
+        </EditorCard>
+      );
+    }
+
+    return null;
+  };
 
   return (
     <aside className="editor-panel">
@@ -358,7 +510,11 @@ export default function ResumeEditor({ resume, setResume, openSections, setOpenS
           </div>
         </EditorCard>
 
-        {!hiddenSections.includes('education') && (
+        {visibleModuleConfigs.map((module, index) => (
+          <React.Fragment key={module.key}>{renderSectionEditor(module, index)}</React.Fragment>
+        ))}
+
+        {false && !hiddenSections.includes('education') && (
           <EditorCard title="教育背景" open={openSections.education} onToggle={() => toggleSection('education')} action={<DeleteSectionButton onClick={() => hideSection('education')} />}>
             <div className="grid gap-3 sm:grid-cols-2">
               {educationFields
@@ -383,37 +539,37 @@ export default function ResumeEditor({ resume, setResume, openSections, setOpenS
           </EditorCard>
         )}
 
-        {!hiddenSections.includes('projects') && (
+        {false && !hiddenSections.includes('projects') && (
           <EditorCard title="项目经验" open={openSections.projects} onToggle={() => toggleSection('projects')} action={<DeleteSectionButton onClick={() => hideSection('projects')} />}>
             <ExperienceEditor titlePrefix="项目" nameLabel="项目名称" roleLabel="角色" items={resume.projects || []} onChange={(value) => updateRoot('projects', value)} />
           </EditorCard>
         )}
 
-        {!hiddenSections.includes('internships') && (
+        {false && !hiddenSections.includes('internships') && (
           <EditorCard title="实习经历" open={openSections.internships} onToggle={() => toggleSection('internships')} action={<DeleteSectionButton onClick={() => hideSection('internships')} />}>
             <ExperienceEditor titlePrefix="实习" nameLabel="公司/组织名称" roleLabel="岗位" items={resume.internships || []} onChange={(value) => updateRoot('internships', value)} />
           </EditorCard>
         )}
 
-        {!hiddenSections.includes('campus') && (
+        {false && !hiddenSections.includes('campus') && (
           <EditorCard title="校园经历" open={openSections.campus} onToggle={() => toggleSection('campus')} action={<DeleteSectionButton onClick={() => hideSection('campus')} />}>
             <ExperienceEditor titlePrefix="经历" nameLabel="组织名称" roleLabel="角色" items={resume.campus || []} onChange={(value) => updateRoot('campus', value)} />
           </EditorCard>
         )}
 
-        {!hiddenSections.includes('skills') && (
+        {false && !hiddenSections.includes('skills') && (
           <EditorCard title="技能特长" open={openSections.skills} onToggle={() => toggleSection('skills')} action={<DeleteSectionButton onClick={() => hideSection('skills')} />}>
             <ListEditor items={resume.skills || []} onChange={(value) => updateRoot('skills', value)} addLabel="增加技能" />
           </EditorCard>
         )}
 
-        {!hiddenSections.includes('honors') && (
+        {false && !hiddenSections.includes('honors') && (
           <EditorCard title="荣誉证书" open={openSections.honors} onToggle={() => toggleSection('honors')} action={<DeleteSectionButton onClick={() => hideSection('honors')} />}>
             <ListEditor items={resume.honors || []} onChange={(value) => updateRoot('honors', value)} addLabel="增加证书" />
           </EditorCard>
         )}
 
-        {!hiddenSections.includes('summary') && (
+        {false && !hiddenSections.includes('summary') && (
           <EditorCard title="自我评价" open={openSections.summary} onToggle={() => toggleSection('summary')} action={<DeleteSectionButton onClick={() => hideSection('summary')} />}>
             <TextArea label="自我评价" rows={6} value={resume.summary} onChange={(value) => updateRoot('summary', value)} />
           </EditorCard>

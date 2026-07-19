@@ -1,12 +1,10 @@
-import { Bold, GripVertical, Italic, List, Plus, Trash2 } from 'lucide-react';
-import React, { useRef } from 'react';
+import { GripVertical, Plus, Trash2 } from 'lucide-react';
+import React from 'react';
+import RichTextBlockEditor from './RichTextBlockEditor.jsx';
 import TextInput from './TextInput.jsx';
 import {
-  applyInlineStyle,
   descriptionsToTextBlock,
   normalizeInlineStyles,
-  reconcileInlineStylesForTextChange,
-  toggleBulletForLine,
 } from '../utils/richText.js';
 
 const createItem = (prefix) => ({
@@ -27,24 +25,6 @@ const moveItem = (list, fromIndex, toIndex) => {
   return next;
 };
 
-function FormatButton({ active, title, children, onClick }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      title={title}
-      aria-label={title}
-      className={`inline-flex h-7 w-7 items-center justify-center rounded border text-xs transition ${
-        active
-          ? 'border-resumeBlue bg-resumeBlue text-white'
-          : 'border-slate-200 bg-white text-slate-500 hover:border-resumeBlue hover:text-resumeBlue'
-      }`}
-    >
-      {children}
-    </button>
-  );
-}
-
 export default function ExperienceEditor({
   titlePrefix,
   items,
@@ -52,9 +32,6 @@ export default function ExperienceEditor({
   nameLabel = '名称',
   roleLabel = '角色',
 }) {
-  const textareaRefs = useRef(new Map());
-  const selectionRefs = useRef(new Map());
-
   const updateItem = (index, field, value) => {
     onChange(
       items.map((item, currentIndex) =>
@@ -86,80 +63,6 @@ export default function ExperienceEditor({
           : item,
       ),
     );
-  };
-
-  const applySelectionStyle = (itemIndex, styleKey) => {
-    const key = `${itemIndex}`;
-    const textarea = textareaRefs.current.get(key);
-    if (!textarea) return;
-
-    const cachedSelection = selectionRefs.current.get(key);
-    const selectionStart = cachedSelection?.start ?? textarea.selectionStart ?? 0;
-    const selectionEnd = cachedSelection?.end ?? textarea.selectionEnd ?? 0;
-    if (selectionStart === selectionEnd) {
-      window.alert('请先选中需要加粗的文字');
-      textarea.focus();
-      return;
-    }
-
-    const block = textBlockFor(items[itemIndex]);
-    const nextBlock = applyInlineStyle(
-      { text: block.text, inlineStyles: block.inlineStyles },
-      styleKey,
-      selectionStart,
-      selectionEnd,
-    );
-    updateTextBlock(itemIndex, nextBlock.text, nextBlock.inlineStyles);
-
-    window.setTimeout(() => {
-      textarea.focus();
-      textarea.setSelectionRange(selectionStart, selectionEnd);
-    }, 0);
-  };
-
-  const recordSelection = (itemIndex) => {
-    const key = `${itemIndex}`;
-    const textarea = textareaRefs.current.get(key);
-    if (!textarea) return;
-
-    selectionRefs.current.set(key, {
-      start: textarea.selectionStart ?? 0,
-      end: textarea.selectionEnd ?? 0,
-    });
-  };
-
-  const handleDescriptionKeyDown = (event, itemIndex) => {
-    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'b') {
-      event.preventDefault();
-      recordSelection(itemIndex);
-      applySelectionStyle(itemIndex, 'bold');
-    }
-  };
-
-  const toggleCurrentLineBullet = (itemIndex) => {
-    const key = `${itemIndex}`;
-    const textarea = textareaRefs.current.get(key);
-    if (!textarea) return;
-
-    const cachedSelection = selectionRefs.current.get(key);
-    const block = textBlockFor(items[itemIndex]);
-    const nextBlock = toggleBulletForLine(
-      block.text,
-      cachedSelection?.start ?? textarea.selectionStart ?? 0,
-      cachedSelection?.end ?? textarea.selectionEnd ?? 0,
-      block.inlineStyles,
-    );
-
-    updateTextBlock(itemIndex, nextBlock.text, nextBlock.inlineStyles);
-    selectionRefs.current.set(key, {
-      start: nextBlock.selectionStart,
-      end: nextBlock.selectionEnd,
-    });
-
-    window.setTimeout(() => {
-      textarea.focus();
-      textarea.setSelectionRange(nextBlock.selectionStart, nextBlock.selectionEnd);
-    }, 0);
   };
 
   const reorderItems = (fromIndex, toIndex) => {
@@ -230,63 +133,15 @@ export default function ExperienceEditor({
           </div>
 
           <div className="mt-3 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-slate-600">经历描述</span>
-              <span className="text-xs text-slate-400">可自由输入项目背景、项目产出或黑点描述</span>
-            </div>
-
-            <div className="rounded-md border border-slate-200 bg-white p-2 transition hover:border-slate-300">
-              <div className="mb-2 flex flex-wrap items-center gap-1.5">
-                <FormatButton
-                  active={textBlockFor(item).inlineStyles.some((range) => range.bold)}
-                  title="加粗选中文字"
-                  onClick={() => applySelectionStyle(index, 'bold')}
-                >
-                  <Bold size={13} />
-                </FormatButton>
-                <FormatButton
-                  active={textBlockFor(item).inlineStyles.some((range) => range.italic)}
-                  title="斜体选中文字"
-                  onClick={() => applySelectionStyle(index, 'italic')}
-                >
-                  <Italic size={13} />
-                </FormatButton>
-                <FormatButton active={false} title="切换当前行黑点" onClick={() => toggleCurrentLineBullet(index)}>
-                  <List size={13} />
-                </FormatButton>
-              </div>
-              <textarea
-                ref={(node) => {
-                  const key = `${index}`;
-                  if (node) {
-                    textareaRefs.current.set(key, node);
-                  } else {
-                    textareaRefs.current.delete(key);
-                    selectionRefs.current.delete(key);
-                  }
-                }}
-                value={textBlockFor(item).text}
-                rows={6}
-                placeholder="项目背景：...\n• 需求拆解与产品规划：...\n项目产出：..."
-                onSelect={() => recordSelection(index)}
-                onKeyDown={(event) => handleDescriptionKeyDown(event, index)}
-                onKeyUp={() => recordSelection(index)}
-                onMouseUp={() => recordSelection(index)}
-                onChange={(event) => {
-                  const block = textBlockFor(item);
-                  updateTextBlock(
-                    index,
-                    event.target.value,
-                    reconcileInlineStylesForTextChange(
-                      block.text,
-                      event.target.value,
-                      block.inlineStyles,
-                    ),
-                  );
-                }}
-                className="w-full resize-y rounded-md border border-slate-200 bg-white px-3 py-2 text-sm leading-6 text-slate-800 outline-none transition hover:border-slate-300 focus:border-resumeBlue focus:ring-2 focus:ring-resumeBlue/15"
-              />
-            </div>
+            <RichTextBlockEditor
+              label="经历描述"
+              helperText="可自由输入项目背景、项目产出或黑点描述"
+              value={textBlockFor(item).text}
+              inlineStyles={textBlockFor(item).inlineStyles}
+              rows={6}
+              placeholder="项目背景：...\n• 需求拆解与产品规划：...\n项目产出：..."
+              onChange={(block) => updateTextBlock(index, block.text, block.inlineStyles)}
+            />
           </div>
         </div>
       ))}

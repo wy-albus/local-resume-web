@@ -2,10 +2,12 @@ import React, { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import ResumeSectionTitle from './ResumeSectionTitle.jsx';
 import {
   descriptionsToTextBlock,
+  listItemsToTextBlock,
   normalizeInlineStyles,
   splitTextBlockLines,
   splitTextByInlineStyles,
 } from '../utils/richText.js';
+import { normalizeSectionOrder } from '../utils/sectionOrder.js';
 
 const PAGE_CONTENT_HEIGHT = 1123 - 30 * 2;
 
@@ -201,6 +203,40 @@ function SectionListBlock({ title, items }) {
   );
 }
 
+function RichTextSectionListBlock({ title, text, inlineStyles }) {
+  const lines = splitTextBlockLines(text, inlineStyles);
+  if (!lines.length) return null;
+
+  return (
+    <>
+      <ResumeSectionTitle>{title}</ResumeSectionTitle>
+      <div className="resume-description-list">
+        {lines.map((line, index) => (
+          <div
+            key={`${line.text}-${index}`}
+            className={`resume-description-row ${line.marker === 'dot' ? '' : 'is-plain'}`}
+          >
+            <span className="resume-description-marker">{line.marker === 'dot' ? '•' : ''}</span>
+            <span className="resume-description-text">
+              {splitTextByInlineStyles(line.text, line.inlineStyles).map((part, partIndex) => (
+                <span
+                  key={`${line.text}-${index}-${partIndex}`}
+                  className={[
+                    part.bold ? 'is-bold' : '',
+                    part.italic ? 'is-italic' : '',
+                  ].join(' ')}
+                >
+                  {part.text}
+                </span>
+              ))}
+            </span>
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
 function SummaryBlock({ summary }) {
   return (
     <>
@@ -218,14 +254,6 @@ function createResumeBlocks(resume) {
   const hiddenSections = resume.meta?.hiddenSections || [];
   const isVisible = (section) => !hiddenSections.includes(section);
   const blocks = [{ id: 'header', type: 'header', render: () => <ResumeHeader basic={resume.basic} /> }];
-
-  if (isVisible('education')) {
-    blocks.push({
-      id: 'education',
-      type: 'single',
-      render: () => <EducationBlock education={resume.education} />,
-    });
-  }
 
   const addExperienceSection = (section, title, items) => {
     if (!isVisible(section) || !(items || []).length) return;
@@ -247,33 +275,60 @@ function createResumeBlocks(resume) {
     });
   };
 
-  addExperienceSection('projects', '项目经验', resume.projects);
-  addExperienceSection('internships', '实习经历', resume.internships);
-  addExperienceSection('campus', '校园经历', resume.campus);
+  const addSkillsSection = () => {
+    const block =
+      typeof resume.skillsText === 'string'
+        ? {
+            text: resume.skillsText,
+            inlineStyles: normalizeInlineStyles(resume.skillsInlineStyles, resume.skillsText),
+          }
+        : listItemsToTextBlock(resume.skills || []);
+    if (!block.text.trim()) return;
 
-  if (isVisible('skills') && hasListContent(resume.skills)) {
     blocks.push({
       id: 'skills',
       type: 'single',
-      render: () => <SectionListBlock title="技能特长" items={resume.skills} />,
+      render: () => (
+        <RichTextSectionListBlock
+          title="技能特长"
+          text={block.text}
+          inlineStyles={block.inlineStyles}
+        />
+      ),
     });
-  }
+  };
 
-  if (isVisible('honors') && hasListContent(resume.honors)) {
-    blocks.push({
-      id: 'honors',
-      type: 'single',
-      render: () => <SectionListBlock title="荣誉证书" items={resume.honors} />,
-    });
-  }
+  normalizeSectionOrder(resume.meta?.sectionOrder).forEach((section) => {
+    if (!isVisible(section)) return;
 
-  if (isVisible('summary') && resume.summary?.trim()) {
-    blocks.push({
-      id: 'summary',
-      type: 'single',
-      render: () => <SummaryBlock summary={resume.summary} />,
-    });
-  }
+    if (section === 'education') {
+      blocks.push({
+        id: 'education',
+        type: 'single',
+        render: () => <EducationBlock education={resume.education} />,
+      });
+    } else if (section === 'projects') {
+      addExperienceSection('projects', '项目经验', resume.projects);
+    } else if (section === 'internships') {
+      addExperienceSection('internships', '实习经历', resume.internships);
+    } else if (section === 'campus') {
+      addExperienceSection('campus', '校园经历', resume.campus);
+    } else if (section === 'skills') {
+      addSkillsSection();
+    } else if (section === 'honors' && hasListContent(resume.honors)) {
+      blocks.push({
+        id: 'honors',
+        type: 'single',
+        render: () => <SectionListBlock title="荣誉证书" items={resume.honors} />,
+      });
+    } else if (section === 'summary' && resume.summary?.trim()) {
+      blocks.push({
+        id: 'summary',
+        type: 'single',
+        render: () => <SummaryBlock summary={resume.summary} />,
+      });
+    }
+  });
 
   return blocks;
 }

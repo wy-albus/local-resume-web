@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "test": "node tests/resumeStorage.test.mjs && node tests/richText.test.mjs",
+    "test": "node tests/resumeStorage.test.mjs && node tests/richText.test.mjs && node tests/sectionOrder.test.mjs",
     "build": "vite build",
     "preview": "vite preview"
   },

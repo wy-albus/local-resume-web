@@ -3,6 +3,7 @@ export const defaultResumeData = {
     templateName: '经典中文简历',
     resumeName: '吴咏-产品经理实习生',
     hiddenSections: ['internships'],
+    sectionOrder: ['education', 'projects', 'internships', 'campus', 'skills', 'honors', 'summary'],
   },
   basic: {
     name: '吴咏',

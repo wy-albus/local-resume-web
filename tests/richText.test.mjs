@@ -2,10 +2,12 @@ import assert from 'node:assert/strict';
 import {
   applyInlineStyle,
   descriptionsToTextBlock,
+  listItemsToTextBlock,
   normalizeInlineStyles,
   reconcileInlineStylesForTextChange,
   splitTextByInlineStyles,
   splitTextBlockLines,
+  textBlockToListItems,
   toggleBulletForLine,
 } from '../src/utils/richText.js';
 
@@ -137,6 +139,16 @@ import {
   assert.equal(lines[1].marker, 'dot');
   assert.equal(lines[1].text, '需求拆解：测试');
   assert.deepEqual(lines[1].inlineStyles, [{ start: 0, end: 2, bold: true, italic: false }]);
+}
+
+{
+  const block = listItemsToTextBlock(['技能特长：熟悉需求分析', '熟悉 Python']);
+
+  assert.equal(block.text, '• 技能特长：熟悉需求分析\n• 熟悉 Python');
+  assert.deepEqual(textBlockToListItems('技能特长：熟悉需求分析\n• 熟悉 Python'), [
+    '技能特长：熟悉需求分析',
+    '熟悉 Python',
+  ]);
 }
 
 console.log('rich text tests passed');

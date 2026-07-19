@@ -286,6 +286,43 @@ export function descriptionsToTextBlock(descriptions = []) {
   };
 }
 
+export function listItemsToTextBlock(items = []) {
+  const lines = [];
+  const inlineStyles = [];
+  let offset = 0;
+
+  (items || []).forEach((item) => {
+    const text = typeof item === 'string' ? item : item?.text || '';
+    if (!text) return;
+
+    const line = `${bulletPrefix}${text}`;
+    const styles = typeof item === 'string' ? [] : normalizeInlineStyles(item?.inlineStyles, text);
+    styles.forEach((range) => {
+      inlineStyles.push({
+        ...range,
+        start: offset + bulletPrefix.length + range.start,
+        end: offset + bulletPrefix.length + range.end,
+      });
+    });
+
+    lines.push(line);
+    offset += line.length + 1;
+  });
+
+  return {
+    text: lines.join('\n'),
+    inlineStyles: normalizeInlineStyles(inlineStyles, lines.join('\n')),
+  };
+}
+
+export function textBlockToListItems(text = '') {
+  return text
+    .split('\n')
+    .map((line) => (line.startsWith(bulletPrefix) ? line.slice(bulletPrefix.length) : line))
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
 function shiftInlineStyles(inlineStyles, text, position, delta) {
   return normalizeInlineStyles(
     (inlineStyles || []).map((range) => ({
