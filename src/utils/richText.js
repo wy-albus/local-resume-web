@@ -15,6 +15,106 @@ export function normalizeInlineStyles(inlineStyles = [], text = '') {
     .sort((left, right) => left.start - right.start || left.end - right.end);
 }
 
+function compactInlineStyles(inlineStyles = [], text = '') {
+  const ranges = normalizeInlineStyles(inlineStyles, text);
+  if (!ranges.length) return [];
+
+  const boundaries = new Set([0, text.length]);
+  ranges.forEach((range) => {
+    boundaries.add(range.start);
+    boundaries.add(range.end);
+  });
+
+  const segments = [...boundaries]
+    .sort((left, right) => left - right)
+    .slice(0, -1)
+    .map((start, index, sortedBoundaries) => {
+      const end = sortedBoundaries[index + 1];
+      const activeRanges = ranges.filter((range) => range.start < end && range.end > start);
+
+      return {
+        start,
+        end,
+        bold: activeRanges.some((range) => range.bold),
+        italic: activeRanges.some((range) => range.italic),
+      };
+    })
+    .filter((range) => range.end > range.start && (range.bold || range.italic));
+
+  return segments.reduce((result, range) => {
+    const previous = result[result.length - 1];
+    if (previous && previous.end === range.start && previous.bold === range.bold && previous.italic === range.italic) {
+      previous.end = range.end;
+      return result;
+    }
+
+    result.push({ ...range });
+    return result;
+  }, []);
+}
+
+function setInlineStyleForSelection(inlineStyles, text, styleKey, start, end, enabled) {
+  const ranges = compactInlineStyles(inlineStyles, text);
+  const boundaries = new Set([0, text.length, start, end]);
+  const overlappingStyledRanges = ranges.filter((range) => range[styleKey] && range.start < end && range.end > start);
+  const cleanupStart = overlappingStyledRanges.length
+    ? Math.min(...overlappingStyledRanges.map((range) => range.start))
+    : start;
+  const cleanupEnd = overlappingStyledRanges.length
+    ? Math.max(...overlappingStyledRanges.map((range) => range.end))
+    : end;
+
+  if (enabled) {
+    boundaries.add(cleanupStart);
+    boundaries.add(cleanupEnd);
+  }
+
+  ranges.forEach((range) => {
+    boundaries.add(range.start);
+    boundaries.add(range.end);
+  });
+
+  const nextRanges = [...boundaries]
+    .sort((left, right) => left - right)
+    .slice(0, -1)
+    .map((segmentStart, index, sortedBoundaries) => {
+      const segmentEnd = sortedBoundaries[index + 1];
+      const activeRanges = ranges.filter((range) => range.start < segmentEnd && range.end > segmentStart);
+      const segment = {
+        start: segmentStart,
+        end: segmentEnd,
+        bold: activeRanges.some((range) => range.bold),
+        italic: activeRanges.some((range) => range.italic),
+      };
+
+      if (segmentStart < end && segmentEnd > start) {
+        segment[styleKey] = enabled;
+      } else if (enabled && segmentStart < cleanupEnd && segmentEnd > cleanupStart) {
+        segment[styleKey] = false;
+      }
+
+      return segment;
+    })
+    .filter((range) => range.end > range.start && (range.bold || range.italic));
+
+  return compactInlineStyles(nextRanges, text);
+}
+
+function isSelectionStyled(inlineStyles, text, styleKey, start, end) {
+  const ranges = compactInlineStyles(inlineStyles, text);
+  let cursor = start;
+
+  ranges
+    .filter((range) => range[styleKey] && range.start < end && range.end > start)
+    .forEach((range) => {
+      if (range.start <= cursor) {
+        cursor = Math.max(cursor, Math.min(range.end, end));
+      }
+    });
+
+  return cursor >= end;
+}
+
 export function applyInlineStyle(description, styleKey, selectionStart, selectionEnd) {
   if (!supportedStyleKeys.has(styleKey)) return description;
 
@@ -23,15 +123,12 @@ export function applyInlineStyle(description, styleKey, selectionStart, selectio
   const end = Math.max(0, Math.min(text.length, Math.max(selectionStart, selectionEnd)));
   if (start === end) return description;
 
-  const ranges = normalizeInlineStyles(description.inlineStyles, text);
-  const sameRangeIndex = ranges.findIndex(
-    (range) => range.start === start && range.end === end && Boolean(range[styleKey]),
-  );
-
-  const nextRanges =
-    sameRangeIndex >= 0
-      ? ranges.filter((_, index) => index !== sameRangeIndex)
-      : [...ranges, { start, end, [styleKey]: true }];
+  const ranges = compactInlineStyles(description.inlineStyles, text);
+  const overlapsSelectionOnly = ranges
+    .filter((range) => range[styleKey] && range.start < end && range.end > start)
+    .every((range) => range.start >= start && range.end <= end);
+  const shouldEnable = !(overlapsSelectionOnly && isSelectionStyled(ranges, text, styleKey, start, end));
+  const nextRanges = setInlineStyleForSelection(ranges, text, styleKey, start, end, shouldEnable);
 
   return {
     ...description,
@@ -40,8 +137,64 @@ export function applyInlineStyle(description, styleKey, selectionStart, selectio
       bold: Boolean(description?.style?.bold),
       italic: Boolean(description?.style?.italic),
     },
-    inlineStyles: normalizeInlineStyles(nextRanges, text),
+    inlineStyles: nextRanges,
   };
+}
+
+export function reconcileInlineStylesForTextChange(oldText = '', newText = '', inlineStyles = []) {
+  const oldRanges = compactInlineStyles(inlineStyles, oldText);
+  if (!oldRanges.length || oldText === newText) {
+    return compactInlineStyles(oldRanges, newText);
+  }
+
+  let prefixLength = 0;
+  while (
+    prefixLength < oldText.length &&
+    prefixLength < newText.length &&
+    oldText[prefixLength] === newText[prefixLength]
+  ) {
+    prefixLength += 1;
+  }
+
+  let suffixLength = 0;
+  while (
+    suffixLength < oldText.length - prefixLength &&
+    suffixLength < newText.length - prefixLength &&
+    oldText[oldText.length - 1 - suffixLength] === newText[newText.length - 1 - suffixLength]
+  ) {
+    suffixLength += 1;
+  }
+
+  const oldChangeEnd = oldText.length - suffixLength;
+  const newChangeEnd = newText.length - suffixLength;
+  const delta = newChangeEnd - oldChangeEnd;
+
+  const shiftedRanges = oldRanges
+    .map((range) => {
+      if (range.end <= prefixLength) {
+        return range;
+      }
+
+      if (range.start >= oldChangeEnd) {
+        return {
+          ...range,
+          start: range.start + delta,
+          end: range.end + delta,
+        };
+      }
+
+      const nextStart = range.start < prefixLength ? range.start : newChangeEnd;
+      const nextEnd = range.end > oldChangeEnd ? range.end + delta : prefixLength;
+
+      return {
+        ...range,
+        start: nextStart,
+        end: nextEnd,
+      };
+    })
+    .filter((range) => range.end > range.start);
+
+  return compactInlineStyles(shiftedRanges, newText);
 }
 
 export function splitTextByInlineStyles(text = '', inlineStyles = []) {

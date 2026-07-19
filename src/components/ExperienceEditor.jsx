@@ -5,6 +5,7 @@ import {
   applyInlineStyle,
   descriptionsToTextBlock,
   normalizeInlineStyles,
+  reconcileInlineStylesForTextChange,
   toggleBulletForLine,
 } from '../utils/richText.js';
 
@@ -271,13 +272,18 @@ export default function ExperienceEditor({
                 onKeyDown={(event) => handleDescriptionKeyDown(event, index)}
                 onKeyUp={() => recordSelection(index)}
                 onMouseUp={() => recordSelection(index)}
-                onChange={(event) =>
+                onChange={(event) => {
+                  const block = textBlockFor(item);
                   updateTextBlock(
                     index,
                     event.target.value,
-                    normalizeInlineStyles(textBlockFor(item).inlineStyles, event.target.value),
-                  )
-                }
+                    reconcileInlineStylesForTextChange(
+                      block.text,
+                      event.target.value,
+                      block.inlineStyles,
+                    ),
+                  );
+                }}
                 className="w-full resize-y rounded-md border border-slate-200 bg-white px-3 py-2 text-sm leading-6 text-slate-800 outline-none transition hover:border-slate-300 focus:border-resumeBlue focus:ring-2 focus:ring-resumeBlue/15"
               />
             </div>

@@ -3,6 +3,7 @@ import {
   applyInlineStyle,
   descriptionsToTextBlock,
   normalizeInlineStyles,
+  reconcileInlineStylesForTextChange,
   splitTextByInlineStyles,
   splitTextBlockLines,
   toggleBulletForLine,
@@ -29,6 +30,32 @@ import {
   const next = applyInlineStyle(description, 'bold', 2, 6);
 
   assert.deepEqual(next.inlineStyles, []);
+}
+
+{
+  const description = {
+    text: '项目背景从高中模拟考试',
+    inlineStyles: [{ start: 0, end: 5, bold: true }],
+  };
+
+  const next = applyInlineStyle(description, 'bold', 0, 4);
+
+  assert.deepEqual(next.inlineStyles, [{ start: 0, end: 4, bold: true, italic: false }]);
+  assert.deepEqual(splitTextByInlineStyles(next.text, next.inlineStyles), [
+    { text: '项目背景', bold: true, italic: false },
+    { text: '从高中模拟考试', bold: false, italic: false },
+  ]);
+}
+
+{
+  const oldText = '项目背景从高中模拟考试';
+  const newText = '这段项目背景从高中模拟考试';
+  const inlineStyles = reconcileInlineStylesForTextChange(oldText, newText, [
+    { start: 0, end: 4, bold: true },
+  ]);
+
+  assert.deepEqual(inlineStyles, [{ start: 2, end: 6, bold: true, italic: false }]);
+  assert.equal(newText.slice(inlineStyles[0].start, inlineStyles[0].end), '项目背景');
 }
 
 {
